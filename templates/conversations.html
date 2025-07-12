@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marcus - Agent Conversations</title>
+    
+    <!-- Modern UI Framework CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Chart.js for Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Vue.js 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    
+    <!-- Socket.io for real-time updates -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    
+    <!-- Custom styles inspired by Grafana/Streamlit -->
+    <style>
+        :root {
+            --bg-primary: #0f0f23;
+            --bg-secondary: #1a1a2e;
+            --bg-tertiary: #252541;
+            --text-primary: #e4e4e7;
+            --text-secondary: #a1a1aa;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+        }
+        
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        /* Grafana-style panels */
+        .metric-panel {
+            background: var(--bg-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .metric-panel:hover {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        /* Message bubbles */
+        .message-bubble {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 3px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .message-bubble.agent {
+            border-left-color: var(--accent-blue);
+        }
+        
+        .message-bubble.marcus {
+            border-left-color: var(--accent-purple);
+        }
+        
+        .message-bubble.system {
+            border-left-color: var(--accent-green);
+        }
+        
+        .message-bubble:hover {
+            transform: translateX(4px);
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        /* Streamlit-style sidebar */
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            height: 100vh;
+            overflow-y: auto;
+        }
+        
+        /* Modern scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-blue);
+        }
+        
+        /* Animated loading states */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .loading {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        /* Status indicators */
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        .status-active { background: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); }
+        .status-idle { background: var(--accent-yellow); }
+        .status-blocked { background: var(--accent-red); box-shadow: 0 0 10px var(--accent-red); }
+        
+        /* Modern input styling */
+        .modern-input {
+            background: var(--bg-tertiary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .modern-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+        
+        /* Confidence indicator */
+        .confidence-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+        
+        .confidence-high { background: var(--accent-green); }
+        .confidence-medium { background: var(--accent-yellow); }
+        .confidence-low { background: var(--accent-red); }
+    </style>
+</head>
+<body>
+    <div id="app" class="flex h-screen">
+        <!-- Streamlit-style Sidebar -->
+        <div class="sidebar w-80 p-6">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <i class="fas fa-comments mr-3 text-blue-500"></i>
+                Conversations
+            </h2>
+            
+            <!-- Real-time Status -->
+            <div class="metric-panel mb-6">
+                <h3 class="text-sm text-gray-400 mb-2">System Status</h3>
+                <div class="flex items-center justify-between">
+                    <span class="flex items-center">
+                        <span :class="['status-indicator', isConnected ? 'status-active' : 'status-idle']"></span>
+                        {{ isConnected ? 'Connected' : 'Disconnected' }}
+                    </span>
+                    <span class="text-xs text-gray-500">{{ currentTime }}</span>
+                </div>
+            </div>
+            
+            <!-- Filters -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-4">Filters</h3>
+                
+                <!-- Agent Filter -->
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-400 mb-2">Agent</label>
+                    <select v-model="filters.agentId" class="modern-input w-full">
+                        <option value="">All Agents</option>
+                        <option v-for="agent in activeAgents" :key="agent.id" :value="agent.id">
+                            {{ agent.name }}
+                        </option>
+                    </select>
+                </div>
+                
+                <!-- Message Type Filter -->
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-400 mb-2">Message Type</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="checkbox" v-model="filters.types.worker_message" class="mr-2">
+                            <span class="text-sm">Worker Messages</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" v-model="filters.types.pm_decision" class="mr-2">
+                            <span class="text-sm">PM Decisions</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" v-model="filters.types.pm_thinking" class="mr-2">
+                            <span class="text-sm">PM Thinking</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" v-model="filters.types.blocker" class="mr-2">
+                            <span class="text-sm">Blockers</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Time Range -->
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-400 mb-2">Time Range</label>
+                    <select v-model="filters.timeRange" class="modern-input w-full">
+                        <option value="15">Last 15 minutes</option>
+                        <option value="60">Last hour</option>
+                        <option value="360">Last 6 hours</option>
+                        <option value="1440">Last 24 hours</option>
+                    </select>
+                </div>
+                
+                <!-- Search -->
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-400 mb-2">Search</label>
+                    <div class="relative">
+                        <input 
+                            v-model="searchQuery" 
+                            @input="debouncedSearch"
+                            placeholder="Search conversations..."
+                            class="modern-input w-full pr-10"
+                        >
+                        <i class="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Stats -->
+            <div class="space-y-3">
+                <div class="metric-panel">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-400">Messages/Hour</span>
+                        <span class="text-xl font-bold">{{ stats.messagesPerHour }}</span>
+                    </div>
+                </div>
+                
+                <div class="metric-panel">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-400">Active Agents</span>
+                        <span class="text-xl font-bold text-green-500">{{ stats.activeAgents }}</span>
+                    </div>
+                </div>
+                
+                <div class="metric-panel">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-400">Avg Confidence</span>
+                        <span class="text-xl font-bold">{{ (stats.avgConfidence * 100).toFixed(0) }}%</span>
+                    </div>
+                    <div class="confidence-bar mt-2">
+                        <div 
+                            :class="['confidence-fill', getConfidenceClass(stats.avgConfidence)]"
+                            :style="{width: (stats.avgConfidence * 100) + '%'}"
+                        ></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col">
+            <!-- Header with Analytics Toggle -->
+            <div class="bg-gray-900 border-b border-gray-800 px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <h1 class="text-2xl font-bold">Agent Communication Stream</h1>
+                    <div class="flex space-x-4">
+                        <button 
+                            @click="showAnalytics = !showAnalytics"
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                        >
+                            <i class="fas fa-chart-line mr-2"></i>
+                            {{ showAnalytics ? 'Hide' : 'Show' }} Analytics
+                        </button>
+                        <button 
+                            @click="exportConversations"
+                            class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                        >
+                            <i class="fas fa-download mr-2"></i>
+                            Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Analytics Dashboard (Grafana-style) -->
+            <div v-if="showAnalytics" class="bg-gray-900 border-b border-gray-800 p-6">
+                <div class="grid grid-cols-3 gap-6 mb-6">
+                    <!-- Message Volume Chart -->
+                    <div class="metric-panel">
+                        <h3 class="text-lg font-semibold mb-4">Message Volume</h3>
+                        <canvas id="volumeChart" height="150"></canvas>
+                    </div>
+                    
+                    <!-- Agent Activity Chart -->
+                    <div class="metric-panel">
+                        <h3 class="text-lg font-semibold mb-4">Agent Activity</h3>
+                        <canvas id="activityChart" height="150"></canvas>
+                    </div>
+                    
+                    <!-- Decision Confidence Chart -->
+                    <div class="metric-panel">
+                        <h3 class="text-lg font-semibold mb-4">Decision Confidence</h3>
+                        <canvas id="confidenceChart" height="150"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Additional Metrics Row -->
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="metric-panel text-center">
+                        <div class="text-3xl font-bold text-blue-500">{{ analytics.totalTasks }}</div>
+                        <div class="text-sm text-gray-400 mt-1">Total Tasks</div>
+                    </div>
+                    
+                    <div class="metric-panel text-center">
+                        <div class="text-3xl font-bold text-green-500">{{ analytics.completionRate }}%</div>
+                        <div class="text-sm text-gray-400 mt-1">Completion Rate</div>
+                    </div>
+                    
+                    <div class="metric-panel text-center">
+                        <div class="text-3xl font-bold text-yellow-500">{{ analytics.avgResponseTime }}ms</div>
+                        <div class="text-sm text-gray-400 mt-1">Avg Response Time</div>
+                    </div>
+                    
+                    <div class="metric-panel text-center">
+                        <div class="text-3xl font-bold text-red-500">{{ analytics.blockerCount }}</div>
+                        <div class="text-sm text-gray-400 mt-1">Active Blockers</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Conversation Stream -->
+            <div class="flex-1 overflow-y-auto p-6">
+                <!-- Loading State -->
+                <div v-if="loading" class="flex items-center justify-center h-64">
+                    <div class="text-center">
+                        <i class="fas fa-spinner fa-spin text-4xl text-blue-500 mb-4"></i>
+                        <p class="text-gray-400">Loading conversations...</p>
+                    </div>
+                </div>
+                
+                <!-- Empty State -->
+                <div v-else-if="filteredConversations.length === 0" class="flex items-center justify-center h-64">
+                    <div class="text-center">
+                        <i class="fas fa-comments text-6xl text-gray-700 mb-4"></i>
+                        <p class="text-xl text-gray-500">No conversations found</p>
+                        <p class="text-sm text-gray-600 mt-2">Try adjusting your filters</p>
+                    </div>
+                </div>
+                
+                <!-- Conversations -->
+                <div v-else class="space-y-4">
+                    <transition-group name="message" tag="div">
+                        <div 
+                            v-for="conv in filteredConversations" 
+                            :key="conv.id"
+                            :class="['message-bubble', getMessageClass(conv)]"
+                        >
+                            <!-- Message Header -->
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="flex items-center">
+                                    <i :class="getSourceIcon(conv)" class="mr-2"></i>
+                                    <span class="font-semibold">{{ conv.source }}</span>
+                                    <i class="fas fa-arrow-right mx-2 text-gray-500 text-xs"></i>
+                                    <span class="text-gray-400">{{ conv.target }}</span>
+                                </div>
+                                <span class="text-xs text-gray-500">{{ formatTime(conv.timestamp) }}</span>
+                            </div>
+                            
+                            <!-- Message Content -->
+                            <div class="mb-2">
+                                <p class="text-gray-200">{{ conv.message }}</p>
+                            </div>
+                            
+                            <!-- Metadata -->
+                            <div v-if="conv.metadata && Object.keys(conv.metadata).length > 0" class="mt-3 pt-3 border-t border-gray-700">
+                                <div class="flex flex-wrap gap-2">
+                                    <!-- Task ID -->
+                                    <span v-if="conv.metadata.task_id" class="px-2 py-1 bg-blue-900 bg-opacity-30 text-blue-400 text-xs rounded">
+                                        <i class="fas fa-tasks mr-1"></i>{{ conv.metadata.task_id }}
+                                    </span>
+                                    
+                                    <!-- Confidence Score -->
+                                    <span v-if="conv.metadata.confidence_score" class="px-2 py-1 bg-purple-900 bg-opacity-30 text-purple-400 text-xs rounded">
+                                        <i class="fas fa-brain mr-1"></i>{{ (conv.metadata.confidence_score * 100).toFixed(0) }}% confident
+                                    </span>
+                                    
+                                    <!-- Status -->
+                                    <span v-if="conv.metadata.status" :class="getStatusClass(conv.metadata.status)">
+                                        {{ conv.metadata.status }}
+                                    </span>
+                                    
+                                    <!-- Custom metadata -->
+                                    <span 
+                                        v-for="(value, key) in getCustomMetadata(conv.metadata)" 
+                                        :key="key"
+                                        class="px-2 py-1 bg-gray-800 text-gray-400 text-xs rounded"
+                                    >
+                                        {{ key }}: {{ value }}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Decision Details (if PM decision) -->
+                            <div v-if="conv.type === 'pm_decision' && conv.metadata.alternatives" class="mt-3 p-3 bg-gray-800 bg-opacity-50 rounded">
+                                <p class="text-sm text-gray-400 mb-2">Alternatives considered:</p>
+                                <ul class="space-y-1">
+                                    <li v-for="alt in conv.metadata.alternatives" :key="alt.id" class="text-sm text-gray-500">
+                                        <i class="fas fa-chevron-right mr-1 text-xs"></i>
+                                        {{ alt.name }} ({{ (alt.score * 100).toFixed(0) }}% match)
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </transition-group>
+                </div>
+                
+                <!-- Load More -->
+                <div v-if="hasMore && !loading" class="text-center mt-6">
+                    <button 
+                        @click="loadMore"
+                        class="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                    >
+                        Load More
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Thinking Indicator (Marcus is thinking) -->
+        <transition name="fade">
+            <div v-if="marcusThinking" class="fixed bottom-6 right-6 bg-purple-900 bg-opacity-90 rounded-lg p-4 max-w-sm">
+                <div class="flex items-center mb-2">
+                    <div class="loading mr-3">
+                        <i class="fas fa-brain text-purple-400 text-xl"></i>
+                    </div>
+                    <span class="font-semibold">Marcus is thinking...</span>
+                </div>
+                <p class="text-sm text-gray-300">{{ marcusThought }}</p>
+            </div>
+        </transition>
+    </div>
+    
+    <script src="/static/js/conversations.js"></script>
+</body>
+</html>

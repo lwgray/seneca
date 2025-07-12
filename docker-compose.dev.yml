@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  seneca-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: seneca:dev
+    container_name: seneca-dev
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # Python debugger port
+    volumes:
+      # Mount source code for hot reload
+      - ./src:/app/src:ro
+      - ./templates:/app/templates:ro
+      - ./static:/app/static:ro
+      - ./start_seneca.py:/app/start_seneca.py:ro
+      # Mount Marcus logs
+      - ${MARCUS_LOG_DIR:-~/dev/marcus/logs}:/logs:ro
+      # Mount config
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - MARCUS_LOG_DIR=/logs
+      - SENECA_HOST=0.0.0.0
+      - SENECA_PORT=8000
+      - LOG_LEVEL=DEBUG
+      - PYTHONDEBUG=1
+      - RELOAD=true
+    networks:
+      - seneca-dev-net
+    command: ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "--wait-for-client", "start_seneca.py"]
+
+  # Mock Marcus for testing (optional)
+  marcus-mock:
+    image: python:3.11-slim
+    container_name: marcus-mock
+    profiles:
+      - testing
+    volumes:
+      - ./tests/fixtures:/logs
+    command: >
+      python -c "
+      import json
+      import time
+      import random
+      from datetime import datetime
+      
+      types = ['worker_to_pm', 'pm_decision', 'blocker', 'task_update']
+      agents = ['worker_1', 'worker_2', 'worker_3']
+      
+      while True:
+          with open('/logs/conversations.jsonl', 'a') as f:
+              conv = {
+                  'timestamp': datetime.utcnow().isoformat() + 'Z',
+                  'type': random.choice(types),
+                  'agent_id': random.choice(agents),
+                  'message': f'Test message at {datetime.utcnow()}',
+                  'task_id': f'TASK-{random.randint(100, 999)}'
+              }
+              f.write(json.dumps(conv) + '\n')
+          time.sleep(random.uniform(1, 5))
+      "
+    networks:
+      - seneca-dev-net
+
+networks:
+  seneca-dev-net:
+    driver: bridge
+
+# Run with mock Marcus:
+# docker-compose -f docker-compose.dev.yml --profile testing up
+
+# Run without mock:
+# docker-compose -f docker-compose.dev.yml up
