@@ -22,6 +22,8 @@ from src.api.conversation_api import conversation_api
 # Import API blueprints
 from src.api.pipeline_enhancement_api import pipeline_api, setup_websocket_handlers
 from src.api.project_management_api import project_api
+from src.api.marcus_prediction_api import prediction_api
+from src.api.marcus_analytics_api import analytics_api
 
 # Create Flask app
 app = Flask(__name__)
@@ -42,6 +44,8 @@ app.register_blueprint(context_api)
 app.register_blueprint(memory_api)
 app.register_blueprint(pattern_api)
 app.register_blueprint(conversation_api)
+app.register_blueprint(prediction_api)
+app.register_blueprint(analytics_api)
 
 
 # Static file serving for frontend
