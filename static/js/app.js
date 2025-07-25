@@ -92,6 +92,27 @@ createApp({
                 blockageRisk: null,
                 cascadeEffects: null,
                 assignmentScore: null
+            },
+            
+            // Analytics & Metrics
+            analyticsForm: {
+                timeWindow: '7d',
+                agentId: '',
+                agentTimeWindow: '7d',
+                codeAgentId: '',
+                startDate: '',
+                endDate: '',
+                repository: '',
+                repoTimeWindow: '7d',
+                qualityRepository: '',
+                branch: 'main'
+            },
+            analytics: {
+                dashboardOverview: null,
+                agentMetrics: null,
+                codeMetrics: null,
+                repositoryMetrics: null,
+                codeQuality: null
             }
         };
     },
@@ -1023,6 +1044,267 @@ createApp({
             if (score >= 0.75) return 'score-good';
             if (score >= 0.5) return 'score-fair';
             return 'score-poor';
+        },
+        
+        // Analytics & Metrics Methods
+        async loadDashboardOverview() {
+            try {
+                const response = await fetch(`/api/analytics/dashboard/overview?time_window=${this.analyticsForm.timeWindow}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.analytics.dashboardOverview = data;
+                    
+                    // Render task breakdown chart if data available
+                    this.$nextTick(() => {
+                        if (data.data.task_breakdown) {
+                            this.renderTaskBreakdownChart(data.data.task_breakdown);
+                        }
+                    });
+                } else {
+                    alert(`Failed to load overview: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Failed to load dashboard overview:', error);
+                alert('Failed to load overview. Check console for details.');
+            }
+        },
+        
+        async loadAgentMetrics() {
+            if (!this.analyticsForm.agentId.trim()) {
+                alert('Please enter an Agent ID');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/analytics/agent/${this.analyticsForm.agentId}/metrics?time_window=${this.analyticsForm.agentTimeWindow}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.analytics.agentMetrics = data;
+                } else {
+                    alert(`Failed to load agent metrics: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Failed to load agent metrics:', error);
+                alert('Failed to load agent metrics. Check console for details.');
+            }
+        },
+        
+        async loadCodeMetrics() {
+            if (!this.analyticsForm.codeAgentId.trim()) {
+                alert('Please enter an Agent ID');
+                return;
+            }
+            
+            try {
+                let url = `/api/analytics/code/${this.analyticsForm.codeAgentId}/metrics`;
+                let params = new URLSearchParams();
+                
+                if (this.analyticsForm.startDate) {
+                    params.append('start_date', this.analyticsForm.startDate);
+                }
+                if (this.analyticsForm.endDate) {
+                    params.append('end_date', this.analyticsForm.endDate);
+                }
+                
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.analytics.codeMetrics = data;
+                } else {
+                    alert(`Failed to load code metrics: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Failed to load code metrics:', error);
+                alert('Failed to load code metrics. Check console for details.');
+            }
+        },
+        
+        async loadRepositoryMetrics() {
+            if (!this.analyticsForm.repository.trim()) {
+                alert('Please enter a repository name');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/analytics/repository/${this.analyticsForm.repository}/metrics?time_window=${this.analyticsForm.repoTimeWindow}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.analytics.repositoryMetrics = data;
+                    
+                    // Render repository language chart
+                    this.$nextTick(() => {
+                        if (data.data.language_breakdown) {
+                            this.renderRepoLanguageChart(data.data.language_breakdown);
+                        }
+                    });
+                } else {
+                    alert(`Failed to load repository metrics: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Failed to load repository metrics:', error);
+                alert('Failed to load repository metrics. Check console for details.');
+            }
+        },
+        
+        async loadCodeQualityMetrics() {
+            if (!this.analyticsForm.qualityRepository.trim()) {
+                alert('Please enter a repository name');
+                return;
+            }
+            
+            try {
+                const branch = this.analyticsForm.branch.trim() || 'main';
+                const response = await fetch(`/api/analytics/code-quality/${this.analyticsForm.qualityRepository}/metrics?branch=${branch}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.analytics.codeQuality = data;
+                } else {
+                    alert(`Failed to load code quality metrics: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Failed to load code quality metrics:', error);
+                alert('Failed to load code quality metrics. Check console for details.');
+            }
+        },
+        
+        // Chart rendering methods
+        renderTaskBreakdownChart(taskData) {
+            const canvas = document.getElementById('taskBreakdownChart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            
+            // Simple pie chart implementation
+            const total = Object.values(taskData).reduce((sum, count) => sum + count, 0);
+            const colors = ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6c757d'];
+            
+            let startAngle = 0;
+            Object.entries(taskData).forEach(([status, count], index) => {
+                const sliceAngle = (count / total) * 2 * Math.PI;
+                
+                ctx.beginPath();
+                ctx.arc(150, 100, 80, startAngle, startAngle + sliceAngle);
+                ctx.lineTo(150, 100);
+                ctx.fillStyle = colors[index % colors.length];
+                ctx.fill();
+                
+                startAngle += sliceAngle;
+            });
+        },
+        
+        renderRepoLanguageChart(languageData) {
+            const canvas = document.getElementById('repoLanguageChart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const colors = this.getLanguageColors(Object.keys(languageData));
+            
+            // Simple bar chart
+            const maxValue = Math.max(...Object.values(languageData));
+            const barWidth = 300 / Object.keys(languageData).length - 10;
+            
+            Object.entries(languageData).forEach(([language, percentage], index) => {
+                const barHeight = (percentage / maxValue) * 150;
+                const x = index * (barWidth + 10) + 20;
+                const y = 180 - barHeight;
+                
+                ctx.fillStyle = colors[index];
+                ctx.fillRect(x, y, barWidth, barHeight);
+                
+                // Label
+                ctx.fillStyle = '#000';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(language, x + barWidth/2, 195);
+            });
+        },
+        
+        // Helper methods for styling
+        getHealthScoreClass(score) {
+            if (!score) return '';
+            if (score >= 0.9) return 'health-excellent';
+            if (score >= 0.75) return 'health-good';
+            if (score >= 0.5) return 'health-fair';
+            return 'health-poor';
+        },
+        
+        getUtilizationClass(utilization) {
+            if (!utilization) return 'utilization-low';
+            if (utilization >= 80) return 'utilization-high';
+            if (utilization >= 50) return 'utilization-medium';
+            return 'utilization-low';
+        },
+        
+        getLanguageColor(language) {
+            const colors = {
+                'javascript': '#f7df1e',
+                'python': '#3776ab',
+                'java': '#ed8b00',
+                'typescript': '#3178c6',
+                'go': '#00add8',
+                'rust': '#ce422b',
+                'cpp': '#00599c',
+                'csharp': '#239120',
+                'php': '#777bb4',
+                'ruby': '#cc342d'
+            };
+            return colors[language.toLowerCase()] || '#6c757d';
+        },
+        
+        getLanguageColors(languages) {
+            return languages.map(lang => this.getLanguageColor(lang));
+        },
+        
+        getCoverageClass(coverage) {
+            if (!coverage) return 'coverage-poor';
+            if (coverage >= 0.8) return 'coverage-excellent';
+            if (coverage >= 0.6) return 'coverage-good';
+            if (coverage >= 0.4) return 'coverage-fair';
+            return 'coverage-poor';
+        },
+        
+        getComplexityClass(complexity) {
+            if (!complexity) return 'complexity-low';
+            if (complexity >= 10) return 'complexity-high';
+            if (complexity >= 5) return 'complexity-medium';
+            return 'complexity-low';
+        },
+        
+        getDebtClass(hours) {
+            if (!hours) return 'debt-low';
+            if (hours >= 40) return 'debt-high';
+            if (hours >= 20) return 'debt-medium';
+            return 'debt-low';
+        },
+        
+        getSecurityClass(issues) {
+            if (!issues || issues === 0) return 'security-none';
+            if (issues >= 5) return 'security-high';
+            return 'security-low';
         }
     }
 }).mount('#app');

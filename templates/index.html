@@ -39,6 +39,9 @@
                 <button @click="switchTab('predictions')" :class="{active: activeTab === 'predictions'}">
                     AI Predictions
                 </button>
+                <button @click="switchTab('analytics')" :class="{active: activeTab === 'analytics'}">
+                    Analytics & Metrics
+                </button>
                 <a href="/conversations" style="text-decoration: none;">
                     <button class="nav-tab">
                         Conversations
@@ -851,6 +854,350 @@
                                         [[ predictions.assignmentScore.data.recommendation ]]
                                     </p>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics & Metrics Tab -->
+            <div v-show="activeTab === 'analytics'" class="tab-content">
+                <h2>Analytics & Code Metrics Dashboard</h2>
+                
+                <!-- Dashboard Overview -->
+                <div class="analytics-section">
+                    <h3>System Overview</h3>
+                    <div class="analytics-controls">
+                        <select v-model="analyticsForm.timeWindow" class="select-field">
+                            <option value="1h">Last Hour</option>
+                            <option value="24h">Last 24 Hours</option>
+                            <option value="7d">Last 7 Days</option>
+                            <option value="30d">Last 30 Days</option>
+                        </select>
+                        <button @click="loadDashboardOverview" class="btn-primary">
+                            Load Overview
+                        </button>
+                    </div>
+                    
+                    <div v-if="analytics.dashboardOverview" class="overview-grid">
+                        <!-- System Metrics -->
+                        <div v-if="analytics.dashboardOverview.data.system_metrics" class="metrics-card">
+                            <h4>System Health</h4>
+                            <div class="system-stats">
+                                <div class="stat-item">
+                                    <label>Active Agents:</label>
+                                    <span class="stat-value">
+                                        [[ analytics.dashboardOverview.data.system_metrics.active_agents || 0 ]]
+                                    </span>
+                                </div>
+                                <div class="stat-item">
+                                    <label>Throughput:</label>
+                                    <span class="stat-value">
+                                        [[ analytics.dashboardOverview.data.system_metrics.throughput || 0 ]] tasks/hr
+                                    </span>
+                                </div>
+                                <div class="stat-item">
+                                    <label>Health Score:</label>
+                                    <span class="stat-value" :class="getHealthScoreClass(analytics.dashboardOverview.data.system_metrics.health_score)">
+                                        [[ Math.round((analytics.dashboardOverview.data.system_metrics.health_score || 0) * 100) ]]%
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Task Breakdown -->
+                        <div v-if="analytics.dashboardOverview.data.task_breakdown" class="metrics-card">
+                            <h4>Task Status</h4>
+                            <div class="task-chart">
+                                <canvas id="taskBreakdownChart" width="300" height="200"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- Project Metrics -->
+                        <div v-if="analytics.dashboardOverview.data.project_metrics" class="metrics-card">
+                            <h4>Project Progress</h4>
+                            <div class="project-stats">
+                                <div class="stat-item">
+                                    <label>Progress:</label>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" 
+                                             :style="{width: (analytics.dashboardOverview.data.project_metrics.progress_percentage || 0) + '%'}">
+                                        </div>
+                                    </div>
+                                    <span>[[ analytics.dashboardOverview.data.project_metrics.progress_percentage || 0 ]]%</span>
+                                </div>
+                                <div class="stat-item">
+                                    <label>Velocity:</label>
+                                    <span class="stat-value">
+                                        [[ analytics.dashboardOverview.data.project_metrics.velocity || 0 ]] tasks/day
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Performance -->
+                <div class="analytics-section">
+                    <h3>Agent Performance</h3>
+                    <div class="analytics-controls">
+                        <input v-model="analyticsForm.agentId" 
+                               placeholder="Agent ID" 
+                               class="input-field">
+                        <select v-model="analyticsForm.agentTimeWindow" class="select-field">
+                            <option value="1h">Last Hour</option>
+                            <option value="24h">Last 24 Hours</option>
+                            <option value="7d">Last 7 Days</option>
+                            <option value="30d">Last 30 Days</option>
+                        </select>
+                        <button @click="loadAgentMetrics" class="btn-primary">
+                            Get Agent Metrics
+                        </button>
+                    </div>
+                    
+                    <div v-if="analytics.agentMetrics" class="agent-metrics-display">
+                        <div class="metrics-grid">
+                            <!-- Agent Utilization -->
+                            <div class="metric-card">
+                                <h5>Utilization</h5>
+                                <div class="utilization-circle" 
+                                     :class="getUtilizationClass(analytics.agentMetrics.data.utilization_percentage)">
+                                    <span class="util-number">
+                                        [[ Math.round(analytics.agentMetrics.data.utilization_percentage || 0) ]]%
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Tasks Completed -->
+                            <div class="metric-card">
+                                <h5>Tasks Completed</h5>
+                                <div class="metric-large">
+                                    [[ analytics.agentMetrics.data.tasks_completed || 0 ]]
+                                </div>
+                            </div>
+                            
+                            <!-- Success Rate -->
+                            <div class="metric-card">
+                                <h5>Success Rate</h5>
+                                <div class="success-meter">
+                                    <div class="success-fill" 
+                                         :style="{width: (analytics.agentMetrics.data.success_rate || 0) * 100 + '%'}">
+                                    </div>
+                                </div>
+                                <span>[[ Math.round((analytics.agentMetrics.data.success_rate || 0) * 100) ]]%</span>
+                            </div>
+                            
+                            <!-- Average Task Time -->
+                            <div class="metric-card">
+                                <h5>Avg Task Time</h5>
+                                <div class="metric-large">
+                                    [[ analytics.agentMetrics.data.average_task_time || 0 ]]h
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Skill Distribution -->
+                        <div v-if="analytics.agentMetrics.data.skill_distribution" class="skill-distribution">
+                            <h5>Skill Distribution</h5>
+                            <div class="skills-list">
+                                <div v-for="(count, skill) in analytics.agentMetrics.data.skill_distribution" 
+                                     :key="skill" 
+                                     class="skill-item">
+                                    <span class="skill-name">[[ skill ]]</span>
+                                    <div class="skill-bar">
+                                        <div class="skill-fill" 
+                                             :style="{width: (count / Math.max(...Object.values(analytics.agentMetrics.data.skill_distribution)) * 100) + '%'}">
+                                        </div>
+                                    </div>
+                                    <span class="skill-count">[[ count ]]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Code Metrics -->
+                <div class="analytics-section">
+                    <h3>Code Production Metrics</h3>
+                    <div class="analytics-controls">
+                        <input v-model="analyticsForm.codeAgentId" 
+                               placeholder="Agent ID" 
+                               class="input-field">
+                        <input v-model="analyticsForm.startDate" 
+                               type="date" 
+                               class="input-field">
+                        <input v-model="analyticsForm.endDate" 
+                               type="date" 
+                               class="input-field">
+                        <button @click="loadCodeMetrics" class="btn-primary">
+                            Get Code Metrics
+                        </button>
+                    </div>
+                    
+                    <div v-if="analytics.codeMetrics" class="code-metrics-display">
+                        <div class="code-stats-grid">
+                            <!-- Commits -->
+                            <div class="code-stat-card">
+                                <div class="stat-icon">📝</div>
+                                <div class="stat-content">
+                                    <h5>Commits</h5>
+                                    <div class="stat-number">[[ analytics.codeMetrics.data.total_commits || 0 ]]</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Lines Added -->
+                            <div class="code-stat-card">
+                                <div class="stat-icon">➕</div>
+                                <div class="stat-content">
+                                    <h5>Lines Added</h5>
+                                    <div class="stat-number positive">[[ analytics.codeMetrics.data.lines_added || 0 ]]</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Lines Deleted -->
+                            <div class="code-stat-card">
+                                <div class="stat-icon">➖</div>
+                                <div class="stat-content">
+                                    <h5>Lines Deleted</h5>
+                                    <div class="stat-number negative">[[ analytics.codeMetrics.data.lines_deleted || 0 ]]</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Files Changed -->
+                            <div class="code-stat-card">
+                                <div class="stat-icon">📁</div>
+                                <div class="stat-content">
+                                    <h5>Files Changed</h5>
+                                    <div class="stat-number">[[ analytics.codeMetrics.data.files_changed || 0 ]]</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Language Distribution -->
+                        <div v-if="analytics.codeMetrics.data.language_distribution" class="language-distribution">
+                            <h5>Language Distribution</h5>
+                            <div class="languages-grid">
+                                <div v-for="(percentage, language) in analytics.codeMetrics.data.language_distribution" 
+                                     :key="language" 
+                                     class="language-item">
+                                    <div class="language-circle" :style="{background: getLanguageColor(language)}">
+                                        <span class="lang-abbr">[[ language.substring(0, 2).toUpperCase() ]]</span>
+                                    </div>
+                                    <div class="language-info">
+                                        <span class="language-name">[[ language ]]</span>
+                                        <span class="language-percent">[[ Math.round(percentage) ]]%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Repository Analytics -->
+                <div class="analytics-section">
+                    <h3>Repository Analytics</h3>
+                    <div class="analytics-controls">
+                        <input v-model="analyticsForm.repository" 
+                               placeholder="Repository name" 
+                               class="input-field">
+                        <select v-model="analyticsForm.repoTimeWindow" class="select-field">
+                            <option value="1h">Last Hour</option>
+                            <option value="24h">Last 24 Hours</option>
+                            <option value="7d">Last 7 Days</option>
+                            <option value="30d">Last 30 Days</option>
+                        </select>
+                        <button @click="loadRepositoryMetrics" class="btn-primary">
+                            Get Repository Metrics
+                        </button>
+                    </div>
+                    
+                    <div v-if="analytics.repositoryMetrics" class="repo-metrics-display">
+                        <div class="repo-overview">
+                            <div class="repo-stat">
+                                <label>Commit Frequency:</label>
+                                <span>[[ analytics.repositoryMetrics.data.commit_frequency || 0 ]] commits/day</span>
+                            </div>
+                            <div class="repo-stat">
+                                <label>Active Contributors:</label>
+                                <span>[[ analytics.repositoryMetrics.data.active_contributors || 0 ]]</span>
+                            </div>
+                            <div class="repo-stat">
+                                <label>PR Merge Rate:</label>
+                                <span>[[ Math.round((analytics.repositoryMetrics.data.pr_merge_rate || 0) * 100) ]]%</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Repository Language Breakdown -->
+                        <div v-if="analytics.repositoryMetrics.data.language_breakdown" class="repo-languages">
+                            <h5>Repository Languages</h5>
+                            <canvas id="repoLanguageChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Code Quality -->
+                <div class="analytics-section">
+                    <h3>Code Quality Metrics</h3>
+                    <div class="analytics-controls">
+                        <input v-model="analyticsForm.qualityRepository" 
+                               placeholder="Repository name" 
+                               class="input-field">
+                        <input v-model="analyticsForm.branch" 
+                               placeholder="Branch (default: main)" 
+                               class="input-field">
+                        <button @click="loadCodeQualityMetrics" class="btn-primary">
+                            Get Quality Metrics
+                        </button>
+                    </div>
+                    
+                    <div v-if="analytics.codeQuality" class="quality-metrics-display">
+                        <div class="quality-grid">
+                            <!-- Coverage -->
+                            <div class="quality-card">
+                                <h5>Test Coverage</h5>
+                                <div class="coverage-circle" :class="getCoverageClass(analytics.codeQuality.data.test_coverage)">
+                                    <span class="coverage-percent">
+                                        [[ Math.round((analytics.codeQuality.data.test_coverage || 0) * 100) ]]%
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Complexity -->
+                            <div class="quality-card">
+                                <h5>Complexity Score</h5>
+                                <div class="complexity-meter">
+                                    <div class="complexity-level" 
+                                         :class="getComplexityClass(analytics.codeQuality.data.complexity_score)">
+                                        [[ analytics.codeQuality.data.complexity_score || 0 ]]
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Technical Debt -->
+                            <div class="quality-card">
+                                <h5>Technical Debt</h5>
+                                <div class="debt-indicator" 
+                                     :class="getDebtClass(analytics.codeQuality.data.technical_debt_hours)">
+                                    [[ analytics.codeQuality.data.technical_debt_hours || 0 ]]h
+                                </div>
+                            </div>
+                            
+                            <!-- Security Issues -->
+                            <div class="quality-card">
+                                <h5>Security Issues</h5>
+                                <div class="security-count" 
+                                     :class="getSecurityClass(analytics.codeQuality.data.security_issues)">
+                                    [[ analytics.codeQuality.data.security_issues || 0 ]]
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Quality Gate Status -->
+                        <div class="quality-gate">
+                            <h5>Quality Gate Status</h5>
+                            <div class="gate-status" 
+                                 :class="analytics.codeQuality.data.quality_gate_passed ? 'gate-passed' : 'gate-failed'">
+                                [[ analytics.codeQuality.data.quality_gate_passed ? '✅ PASSED' : '❌ FAILED' ]]
                             </div>
                         </div>
                     </div>
