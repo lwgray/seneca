@@ -36,6 +36,9 @@
                 <button @click="switchTab('agents')" :class="{active: activeTab === 'agents'}">
                     Agent Management
                 </button>
+                <button @click="switchTab('predictions')" :class="{active: activeTab === 'predictions'}">
+                    AI Predictions
+                </button>
                 <a href="/conversations" style="text-decoration: none;">
                     <button class="nav-tab">
                         Conversations
@@ -585,6 +588,270 @@
                             <span class="log-time">[[ new Date(log.timestamp).toLocaleTimeString() ]]</span>
                             <span class="log-agent">[[ log.agent_id ]]:</span>
                             <span class="log-message">[[ log.message ]]</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Predictions Tab -->
+            <div v-show="activeTab === 'predictions'" class="tab-content">
+                <h2>Marcus AI Predictions</h2>
+                
+                <!-- Project Completion Predictions -->
+                <div class="prediction-section">
+                    <h3>Project Completion Predictions</h3>
+                    <div class="prediction-form">
+                        <input v-model="predictionForm.projectId" 
+                               placeholder="Project ID" 
+                               class="input-field">
+                        <label>
+                            <input type="checkbox" v-model="predictionForm.includeConfidence">
+                            Include confidence intervals
+                        </label>
+                        <button @click="predictProjectCompletion" class="btn-primary">
+                            Predict Completion
+                        </button>
+                    </div>
+                    
+                    <div v-if="predictions.projectCompletion" class="prediction-results">
+                        <div class="prediction-card">
+                            <h4>Project Completion Forecast</h4>
+                            <div v-if="predictions.projectCompletion.data" class="prediction-content">
+                                <div class="metric-grid">
+                                    <div class="metric-item">
+                                        <label>Estimated Completion:</label>
+                                        <span class="completion-date">
+                                            [[ predictions.projectCompletion.data.estimated_completion_date || 'Not available' ]]
+                                        </span>
+                                    </div>
+                                    <div class="metric-item" v-if="predictions.projectCompletion.data.velocity">
+                                        <label>Current Velocity:</label>
+                                        <span>[[ predictions.projectCompletion.data.velocity ]] tasks/day</span>
+                                    </div>
+                                    <div class="metric-item" v-if="predictions.projectCompletion.data.confidence_score">
+                                        <label>Confidence:</label>
+                                        <span class="confidence-score">
+                                            [[ Math.round(predictions.projectCompletion.data.confidence_score * 100) ]]%
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div v-if="predictions.projectCompletion.data.risk_factors" class="risk-factors">
+                                    <h5>Risk Factors:</h5>
+                                    <ul>
+                                        <li v-for="risk in predictions.projectCompletion.data.risk_factors" :key="risk">
+                                            [[ risk ]]
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Outcome Predictions -->
+                <div class="prediction-section">
+                    <h3>Task Outcome Predictions</h3>
+                    <div class="prediction-form">
+                        <input v-model="predictionForm.taskId" 
+                               placeholder="Task ID" 
+                               class="input-field">
+                        <input v-model="predictionForm.agentId" 
+                               placeholder="Agent ID (optional)" 
+                               class="input-field">
+                        <button @click="predictTaskOutcome" class="btn-primary">
+                            Predict Outcome
+                        </button>
+                    </div>
+                    
+                    <div v-if="predictions.taskOutcome" class="prediction-results">
+                        <div class="prediction-card">
+                            <h4>Task Success Prediction</h4>
+                            <div v-if="predictions.taskOutcome.data" class="prediction-content">
+                                <div class="success-probability">
+                                    <div class="probability-meter">
+                                        <div class="probability-fill" 
+                                             :style="{width: (predictions.taskOutcome.data.success_probability || 0) * 100 + '%'}">
+                                        </div>
+                                    </div>
+                                    <span class="probability-text">
+                                        [[ Math.round((predictions.taskOutcome.data.success_probability || 0) * 100) ]]% Success Probability
+                                    </span>
+                                </div>
+                                
+                                <div class="outcome-metrics">
+                                    <div class="metric-item" v-if="predictions.taskOutcome.data.estimated_duration">
+                                        <label>Estimated Duration:</label>
+                                        <span>[[ predictions.taskOutcome.data.estimated_duration ]] hours</span>
+                                    </div>
+                                    <div class="metric-item" v-if="predictions.taskOutcome.data.blockage_risk">
+                                        <label>Blockage Risk:</label>
+                                        <span :class="getBlockageRiskClass(predictions.taskOutcome.data.blockage_risk)">
+                                            [[ Math.round(predictions.taskOutcome.data.blockage_risk * 100) ]]%
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Blockage Risk Analysis -->
+                <div class="prediction-section">
+                    <h3>Blockage Risk Analysis</h3>
+                    <div class="prediction-form">
+                        <input v-model="predictionForm.blockageTaskId" 
+                               placeholder="Task ID" 
+                               class="input-field">
+                        <label>
+                            <input type="checkbox" v-model="predictionForm.includeMitigation">
+                            Include mitigation suggestions
+                        </label>
+                        <button @click="predictBlockageRisk" class="btn-primary">
+                            Analyze Blockage Risk
+                        </button>
+                    </div>
+                    
+                    <div v-if="predictions.blockageRisk" class="prediction-results">
+                        <div class="prediction-card">
+                            <h4>Blockage Risk Assessment</h4>
+                            <div v-if="predictions.blockageRisk.data" class="prediction-content">
+                                <div class="risk-meter">
+                                    <div class="risk-level" 
+                                         :class="getBlockageRiskClass(predictions.blockageRisk.data.blockage_probability)">
+                                        [[ Math.round((predictions.blockageRisk.data.blockage_probability || 0) * 100) ]]%
+                                        Risk of Blockage
+                                    </div>
+                                </div>
+                                
+                                <div v-if="predictions.blockageRisk.data.likely_causes" class="likely-causes">
+                                    <h5>Likely Causes:</h5>
+                                    <ul>
+                                        <li v-for="cause in predictions.blockageRisk.data.likely_causes" :key="cause">
+                                            [[ cause ]]
+                                        </li>
+                                    </ul>
+                                </div>
+                                
+                                <div v-if="predictions.blockageRisk.data.mitigation_suggestions" class="mitigation-suggestions">
+                                    <h5>Suggested Mitigations:</h5>
+                                    <ul>
+                                        <li v-for="suggestion in predictions.blockageRisk.data.mitigation_suggestions" :key="suggestion">
+                                            [[ suggestion ]]
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cascade Effects Analysis -->
+                <div class="prediction-section">
+                    <h3>Cascade Effects Analysis</h3>
+                    <div class="prediction-form">
+                        <input v-model="predictionForm.cascadeTaskId" 
+                               placeholder="Task ID" 
+                               class="input-field">
+                        <input v-model.number="predictionForm.delayDays" 
+                               type="number" 
+                               min="1" 
+                               max="30"
+                               placeholder="Days of delay to simulate" 
+                               class="input-field">
+                        <button @click="predictCascadeEffects" class="btn-primary">
+                            Analyze Cascade Effects
+                        </button>
+                    </div>
+                    
+                    <div v-if="predictions.cascadeEffects" class="prediction-results">
+                        <div class="prediction-card">
+                            <h4>Cascade Impact Analysis</h4>
+                            <div v-if="predictions.cascadeEffects.data" class="prediction-content">
+                                <div class="impact-summary">
+                                    <div class="metric-item" v-if="predictions.cascadeEffects.data.affected_tasks_count">
+                                        <label>Affected Tasks:</label>
+                                        <span class="impact-number">[[ predictions.cascadeEffects.data.affected_tasks_count ]]</span>
+                                    </div>
+                                    <div class="metric-item" v-if="predictions.cascadeEffects.data.total_delay_impact">
+                                        <label>Total Delay Impact:</label>
+                                        <span class="impact-number">[[ predictions.cascadeEffects.data.total_delay_impact ]] days</span>
+                                    </div>
+                                </div>
+                                
+                                <div v-if="predictions.cascadeEffects.data.affected_tasks" class="affected-tasks">
+                                    <h5>Affected Tasks:</h5>
+                                    <div class="task-list">
+                                        <div v-for="task in predictions.cascadeEffects.data.affected_tasks" 
+                                             :key="task.task_id" 
+                                             class="affected-task">
+                                            <span class="task-id">[[ task.task_id ]]</span>
+                                            <span class="task-delay">+[[ task.additional_delay ]] days</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Assignment Scoring -->
+                <div class="prediction-section">
+                    <h3>Task Assignment Scoring</h3>
+                    <div class="prediction-form">
+                        <input v-model="predictionForm.assignmentTaskId" 
+                               placeholder="Task ID" 
+                               class="input-field">
+                        <input v-model="predictionForm.assignmentAgentId" 
+                               placeholder="Agent ID" 
+                               class="input-field">
+                        <button @click="getAssignmentScore" class="btn-primary">
+                            Score Assignment
+                        </button>
+                    </div>
+                    
+                    <div v-if="predictions.assignmentScore" class="prediction-results">
+                        <div class="prediction-card">
+                            <h4>Assignment Fitness Score</h4>
+                            <div v-if="predictions.assignmentScore.data" class="prediction-content">
+                                <div class="assignment-score">
+                                    <div class="score-circle" :class="getScoreClass(predictions.assignmentScore.data.overall_score)">
+                                        <span class="score-number">
+                                            [[ Math.round((predictions.assignmentScore.data.overall_score || 0) * 100) ]]
+                                        </span>
+                                        <span class="score-label">Score</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="score-breakdown">
+                                    <div class="breakdown-item" v-if="predictions.assignmentScore.data.skill_match">
+                                        <label>Skill Match:</label>
+                                        <div class="score-bar">
+                                            <div class="score-fill" 
+                                                 :style="{width: predictions.assignmentScore.data.skill_match * 100 + '%'}">
+                                            </div>
+                                        </div>
+                                        <span>[[ Math.round(predictions.assignmentScore.data.skill_match * 100) ]]%</span>
+                                    </div>
+                                    
+                                    <div class="breakdown-item" v-if="predictions.assignmentScore.data.availability">
+                                        <label>Availability:</label>
+                                        <div class="score-bar">
+                                            <div class="score-fill" 
+                                                 :style="{width: predictions.assignmentScore.data.availability * 100 + '%'}">
+                                            </div>
+                                        </div>
+                                        <span>[[ Math.round(predictions.assignmentScore.data.availability * 100) ]]%</span>
+                                    </div>
+                                </div>
+                                
+                                <div v-if="predictions.assignmentScore.data.recommendation" class="assignment-recommendation">
+                                    <h5>Recommendation:</h5>
+                                    <p class="recommendation-text">
+                                        [[ predictions.assignmentScore.data.recommendation ]]
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

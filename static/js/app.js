@@ -71,6 +71,27 @@ createApp({
                 parallel_execution: true,
                 continuous_monitoring: true,
                 max_agents: 3
+            },
+            
+            // AI Predictions
+            predictionForm: {
+                projectId: '',
+                includeConfidence: true,
+                taskId: '',
+                agentId: '',
+                blockageTaskId: '',
+                includeMitigation: true,
+                cascadeTaskId: '',
+                delayDays: 1,
+                assignmentTaskId: '',
+                assignmentAgentId: ''
+            },
+            predictions: {
+                projectCompletion: null,
+                taskOutcome: null,
+                blockageRisk: null,
+                cascadeEffects: null,
+                assignmentScore: null
             }
         };
     },
@@ -849,6 +870,159 @@ createApp({
             } catch (error) {
                 console.error('Failed to get project flow:', error);
             }
+        },
+        
+        // AI Predictions Methods
+        async predictProjectCompletion() {
+            if (!this.predictionForm.projectId.trim()) {
+                alert('Please enter a Project ID');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/predictions/project/${this.predictionForm.projectId}/completion`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        include_confidence: this.predictionForm.includeConfidence
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.predictions.projectCompletion = data;
+                } else {
+                    alert(`Prediction failed: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Failed to predict project completion:', error);
+                alert('Failed to get prediction. Check console for details.');
+            }
+        },
+        
+        async predictTaskOutcome() {
+            if (!this.predictionForm.taskId.trim()) {
+                alert('Please enter a Task ID');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/predictions/task/${this.predictionForm.taskId}/outcome`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent_id: this.predictionForm.agentId.trim() || null
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.predictions.taskOutcome = data;
+                } else {
+                    alert(`Prediction failed: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Failed to predict task outcome:', error);
+                alert('Failed to get prediction. Check console for details.');
+            }
+        },
+        
+        async predictBlockageRisk() {
+            if (!this.predictionForm.blockageTaskId.trim()) {
+                alert('Please enter a Task ID');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/predictions/task/${this.predictionForm.blockageTaskId}/blockage-risk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        include_mitigation: this.predictionForm.includeMitigation
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.predictions.blockageRisk = data;
+                } else {
+                    alert(`Prediction failed: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Failed to predict blockage risk:', error);
+                alert('Failed to get prediction. Check console for details.');
+            }
+        },
+        
+        async predictCascadeEffects() {
+            if (!this.predictionForm.cascadeTaskId.trim()) {
+                alert('Please enter a Task ID');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/predictions/task/${this.predictionForm.cascadeTaskId}/cascade-effects`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        delay_days: this.predictionForm.delayDays
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.predictions.cascadeEffects = data;
+                } else {
+                    alert(`Prediction failed: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Failed to predict cascade effects:', error);
+                alert('Failed to get prediction. Check console for details.');
+            }
+        },
+        
+        async getAssignmentScore() {
+            if (!this.predictionForm.assignmentTaskId.trim() || !this.predictionForm.assignmentAgentId.trim()) {
+                alert('Please enter both Task ID and Agent ID');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/predictions/assignment/score', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        task_id: this.predictionForm.assignmentTaskId,
+                        agent_id: this.predictionForm.assignmentAgentId
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.predictions.assignmentScore = data;
+                } else {
+                    alert(`Scoring failed: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Failed to get assignment score:', error);
+                alert('Failed to get score. Check console for details.');
+            }
+        },
+        
+        // Helper methods for styling
+        getBlockageRiskClass(risk) {
+            if (!risk) return '';
+            if (risk < 0.3) return 'risk-low';
+            if (risk < 0.7) return 'risk-medium';
+            return 'risk-high';
+        },
+        
+        getScoreClass(score) {
+            if (!score) return 'score-poor';
+            if (score >= 0.9) return 'score-excellent';
+            if (score >= 0.75) return 'score-good';
+            if (score >= 0.5) return 'score-fair';
+            return 'score-poor';
         }
     }
 }).mount('#app');
