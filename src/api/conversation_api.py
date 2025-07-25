@@ -15,7 +15,7 @@ from flask import Blueprint, jsonify, request
 from flask_socketio import emit
 
 # Use Seneca's local processors instead of Marcus imports
-from ..processors.conversation_processor import (
+from processors.conversation_processor import (
     ConversationProcessor,
     ConversationStreamProcessor
 )

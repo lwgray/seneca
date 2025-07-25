@@ -54,6 +54,12 @@ class SenecaConfig:
             default=str(Path.home() / 'dev' / 'marcus' / 'logs' / 'conversations')
         )
         
+        # Marcus MCP transport settings
+        self.marcus_transport: str = self._get_config('MARCUS_TRANSPORT', default='auto')
+        self.marcus_http_url: Optional[str] = self._get_config('MARCUS_HTTP_URL', default=None)
+        if self.marcus_http_url == 'None' or self.marcus_http_url == '':
+            self.marcus_http_url = None
+        
         # Validate Marcus log directory exists
         if not Path(self.marcus_log_dir).exists():
             # Try relative path from Seneca root
@@ -114,6 +120,8 @@ class SenecaConfig:
         """
         return {
             'marcus_log_dir': self.marcus_log_dir,
+            'marcus_transport': self.marcus_transport,
+            'marcus_http_url': self.marcus_http_url,
             'host': self.host,
             'port': self.port,
             'debug': self.debug,

@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 
 from flask import Blueprint, jsonify, request
 
-from src.mcp_client.marcus_http_client import MarcusHTTPClient
+from src.mcp_client.simple_marcus_client import SimpleMarcusClient
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +20,14 @@ logger = logging.getLogger(__name__)
 analytics_api = Blueprint("analytics_api", __name__, url_prefix="/api/analytics")
 
 # Global client instance for reuse
-_marcus_client: Optional[MarcusHTTPClient] = None
+_marcus_client: Optional[SimpleMarcusClient] = None
 
 
-def get_marcus_client() -> MarcusHTTPClient:
-    """Get configured Marcus HTTP client."""
+def get_marcus_client() -> SimpleMarcusClient:
+    """Get configured Marcus MCP client.""" 
     global _marcus_client
     if not _marcus_client:
-        _marcus_client = MarcusHTTPClient(base_url="http://localhost:4298")
+        _marcus_client = SimpleMarcusClient(base_url="http://localhost:4300")
     return _marcus_client
 
 
@@ -48,13 +48,10 @@ def get_system_metrics():
         asyncio.set_event_loop(loop)
         
         try:
-            auth_result = loop.run_until_complete(
-                client.authenticate("seneca-analytics", "observer", "viewer")
-            )
-            
+            # Call Marcus tool directly - no separate auth needed
             result = loop.run_until_complete(
-                client.call_tool("get_system_metrics", {
-                    "time_window": time_window
+                client.connect_and_call_tool("ping", {
+                    "echo": f"system metrics request - {time_window}"
                 })
             )
         finally:

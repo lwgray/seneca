@@ -33,6 +33,9 @@ extensions = [
     'sphinx.ext.napoleon',  # For numpy-style docstrings
     'sphinx_autodoc_typehints',  # For type hints
     'sphinx.ext.intersphinx',  # For linking to other docs
+    'sphinx.ext.graphviz',  # For system diagrams
+    'sphinx_design',  # For cards, tabs, grids, and enhanced layouts
+    'myst_parser',  # Enhanced Markdown support
 ]
 
 # Napoleon settings for numpy-style docstrings
@@ -93,3 +96,21 @@ html_theme_options = {
 # https://www.sphinx-doc.org/en/master/usage/extensions/todo.html#configuration
 
 todo_include_todos = True
+
+# -- Options for MyST parser ------------------------------------------------
+myst_enable_extensions = [
+    "amsmath",
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "html_admonition",
+    "html_image",
+    "linkify",
+    "replacements",
+    "smartquotes",
+    "substitution",
+    "tasklist",
+]
+
+# -- Options for sphinx-design -----------------------------------------------
+sd_fontawesome_latex = True

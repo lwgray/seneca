@@ -27,7 +27,7 @@ def get_marcus_client() -> MarcusHTTPClient:
     """Get configured Marcus HTTP client."""
     global _marcus_client
     if not _marcus_client:
-        _marcus_client = MarcusHTTPClient(base_url="http://localhost:4298")
+        _marcus_client = MarcusHTTPClient(base_url="http://localhost:4300")
     return _marcus_client
 
 
@@ -50,6 +50,14 @@ def predict_project_completion(project_id: str):
         asyncio.set_event_loop(loop)
         
         try:
+            # Connect to Marcus first
+            connected = loop.run_until_complete(client.connect())
+            if not connected:
+                return jsonify({
+                    "success": False,
+                    "error": "Not connected to Marcus"
+                }), 503
+            
             # Authenticate as observer
             auth_result = loop.run_until_complete(
                 client.authenticate("seneca-predictions", "observer", "viewer")

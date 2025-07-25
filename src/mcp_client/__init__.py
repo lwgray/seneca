@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Union
 
 from .marcus_client import MarcusClient, MarcusLogReader
-from .marcus_http_client import MarcusHttpClient
+from .marcus_http_client import MarcusHTTPClient as MarcusHttpClient
 from .marcus_client_factory import MarcusClientFactory
 
 logger = logging.getLogger(__name__)

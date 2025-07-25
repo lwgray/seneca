@@ -18,7 +18,7 @@ from api.conversation_api import conversation_api
 from api.agent_management_api import agent_api  
 from api.project_management_api import project_api
 from api.pipeline_enhancement_api import pipeline_api
-from mcp_client.marcus_client import marcus_client, marcus_log_reader
+from mcp_client import marcus_log_reader, get_marcus_client, initialize_marcus_client
 
 
 def create_seneca_app():
@@ -56,10 +56,11 @@ def create_seneca_app():
     @app.route("/api/health")
     def health_check():
         """Health check endpoint"""
+        client = get_marcus_client()
         return {
             "status": "healthy", 
             "service": "seneca",
-            "marcus_connected": marcus_client.connected
+            "marcus_connected": client.connected if client else False
         }
     
     # WebSocket events
@@ -110,22 +111,24 @@ def run_seneca_server(host="0.0.0.0", port=8000, marcus_server=None, debug=False
     
     # Connect to Marcus if available
     async def connect_to_marcus():
-        if marcus_server:
-            # Use specified server path
-            marcus_client.server_path = marcus_server
-            logger.info(f"Connecting to Marcus at: {marcus_server}")
-            success = await marcus_client.connect(auto_discover=False)
-        else:
-            # Try auto-discovery
-            logger.info("Auto-discovering Marcus instances...")
-            success = await marcus_client.connect(auto_discover=True)
+        # Load config for transport settings
+        from config import SenecaConfig
+        config = SenecaConfig()
+        
+        success = await initialize_marcus_client(
+            transport=config.marcus_transport,
+            server_path=marcus_server,
+            http_url=config.marcus_http_url,
+            auto_discover=True
+        )
         
         if success:
-            logger.info("✓ Connected to Marcus MCP server")
+            client = get_marcus_client()
+            logger.info(f"✓ Connected to Marcus via {type(client).__name__}")
             
             # Test the connection
             try:
-                ping_result = await marcus_client.ping()
+                ping_result = await client.ping()
                 logger.info(f"✓ Marcus responded: {ping_result.get('echo', 'pong')}")
             except Exception as e:
                 logger.warning(f"Ping failed: {e}")
@@ -158,8 +161,9 @@ def run_seneca_server(host="0.0.0.0", port=8000, marcus_server=None, debug=False
         socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)
     except KeyboardInterrupt:
         print("\n🛑 Shutting down Seneca...")
-        if marcus_client.connected:
-            asyncio.run(marcus_client.disconnect())
+        client = get_marcus_client()
+        if client and client.connected:
+            asyncio.run(client.disconnect())
 
 
 if __name__ == "__main__":

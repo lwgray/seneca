@@ -10,7 +10,7 @@ import os
 from typing import Optional, Union
 
 from .marcus_client import MarcusClient
-from .marcus_http_client import MarcusHttpClient
+from .marcus_http_client import MarcusHTTPClient as MarcusHttpClient
 
 logger = logging.getLogger(__name__)
 

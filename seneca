@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+"""
+Seneca CLI - Visualization and Analytics Platform for Marcus
+
+Usage:
+    seneca start [--port PORT] [--marcus-http URL]
+    seneca stop
+    seneca status
+    seneca logs [--tail N]
+    seneca open              # Open in browser
+    seneca config [--show | --edit]
+    seneca --version
+    seneca --help
+
+Examples:
+    seneca start                    # Start with auto-discovery
+    seneca start --port 8080        # Start on custom port
+    seneca start --marcus-http URL  # Connect to specific Marcus
+    seneca open                     # Open dashboard in browser
+    seneca logs --tail 50          # View recent logs
+"""
+
+import os
+import sys
+import json
+import signal
+import psutil
+import argparse
+import subprocess
+import webbrowser
+from pathlib import Path
+from datetime import datetime
+
+# Add Seneca to path
+SENECA_ROOT = Path(__file__).parent
+sys.path.insert(0, str(SENECA_ROOT))
+
+from config import SenecaConfig
+
+
+class SenecaCLI:
+    """Command-line interface for Seneca"""
+    
+    def __init__(self):
+        self.config_file = SENECA_ROOT / "seneca.config.json"
+        self.pid_file = Path.home() / ".seneca" / "seneca.pid"
+        self.log_dir = SENECA_ROOT / "logs"
+        self.config = SenecaConfig()
+        
+    def start(self, args):
+        """Start Seneca server"""
+        # Check if already running
+        if self._is_running():
+            print("❌ Seneca is already running")
+            print("   Run 'seneca stop' first or 'seneca status' for details")
+            return 1
+            
+        print("🏛️  Starting Seneca...")
+        
+        # Set environment variables
+        env = os.environ.copy()
+        
+        if args.marcus_http:
+            env["MARCUS_TRANSPORT"] = "http"
+            env["MARCUS_HTTP_URL"] = args.marcus_http
+            print(f"   Connecting to Marcus HTTP: {args.marcus_http}")
+        elif args.marcus_stdio:
+            env["MARCUS_TRANSPORT"] = "stdio"
+            print("   Using Marcus stdio transport")
+            
+        # Build command
+        cmd = [sys.executable, str(SENECA_ROOT / "src" / "seneca_server.py")]
+        
+        if args.port:
+            cmd.extend(["--port", str(args.port)])
+            
+        # Start in background
+        if args.foreground:
+            # Run in foreground
+            try:
+                subprocess.run(cmd, env=env)
+            except KeyboardInterrupt:
+                print("\n✅ Seneca stopped")
+                return 0
+        else:
+            # Run as daemon
+            log_file = self.log_dir / f"seneca_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+            log_file.parent.mkdir(exist_ok=True)
+            
+            with open(log_file, 'w') as f:
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=f,
+                    stderr=subprocess.STDOUT,
+                    env=env,
+                    start_new_session=True
+                )
+                
+            # Save PID
+            self.pid_file.parent.mkdir(exist_ok=True)
+            self.pid_file.write_text(str(process.pid))
+            
+            # Wait a moment and check if it started
+            import time
+            time.sleep(3)
+            
+            if self._is_running():
+                port = args.port or self.config.port
+                print("✅ Seneca started successfully")
+                print(f"   PID: {process.pid}")
+                print(f"   Dashboard: http://localhost:{port}")
+                print(f"   Logs: {log_file}")
+                
+                if args.open_browser:
+                    self._open_browser(port)
+                    
+                return 0
+            else:
+                print("❌ Failed to start Seneca")
+                print(f"   Check logs: {log_file}")
+                return 1
+                
+    def stop(self, args):
+        """Stop Seneca server"""
+        if not self._is_running():
+            print("❌ Seneca is not running")
+            return 1
+            
+        pid = self._get_pid()
+        if pid:
+            print(f"🛑 Stopping Seneca (PID: {pid})...")
+            try:
+                # Send SIGTERM for graceful shutdown
+                os.kill(pid, signal.SIGTERM)
+                
+                # Wait for process to stop
+                import time
+                for i in range(10):
+                    if not self._is_running():
+                        print("✅ Seneca stopped successfully")
+                        self.pid_file.unlink(missing_ok=True)
+                        return 0
+                    time.sleep(0.5)
+                    
+                # Force kill if still running
+                print("⚠️  Graceful shutdown failed, forcing stop...")
+                os.kill(pid, signal.SIGKILL)
+                self.pid_file.unlink(missing_ok=True)
+                print("✅ Seneca stopped (forced)")
+                return 0
+                
+            except ProcessLookupError:
+                print("✅ Seneca already stopped")
+                self.pid_file.unlink(missing_ok=True)
+                return 0
+            except Exception as e:
+                print(f"❌ Error stopping Seneca: {e}")
+                return 1
+                
+    def status(self, args):
+        """Check Seneca status"""
+        if self._is_running():
+            pid = self._get_pid()
+            print("✅ Seneca is running")
+            print(f"   PID: {pid}")
+            
+            # Get process info
+            try:
+                process = psutil.Process(pid)
+                print(f"   CPU: {process.cpu_percent(interval=0.1):.1f}%")
+                print(f"   Memory: {process.memory_info().rss / 1024 / 1024:.1f} MB")
+                print(f"   Uptime: {datetime.now() - datetime.fromtimestamp(process.create_time())}")
+            except:
+                pass
+                
+            # Show endpoints
+            port = self.config.port
+            print(f"   Dashboard: http://localhost:{port}")
+            print(f"   API Health: http://localhost:{port}/api/health")
+            
+            # Check Marcus connection
+            try:
+                import requests
+                resp = requests.get(f"http://localhost:{port}/api/health", timeout=2)
+                health = resp.json()
+                if health.get("marcus_connected"):
+                    print("   Marcus: ✅ Connected")
+                else:
+                    print("   Marcus: ❌ Not connected")
+            except:
+                print("   Marcus: ❓ Unable to check")
+                
+        else:
+            print("❌ Seneca is not running")
+            print("   Run 'seneca start' to start the server")
+            
+        return 0
+        
+    def logs(self, args):
+        """View Seneca logs"""
+        if not self.log_dir.exists():
+            print("❌ No logs found")
+            return 1
+            
+        # Find most recent log file
+        log_files = sorted(self.log_dir.glob("seneca_*.log"), key=os.path.getmtime, reverse=True)
+        
+        if not log_files:
+            print("❌ No log files found")
+            return 1
+            
+        log_file = log_files[0]
+        print(f"📄 Viewing: {log_file}")
+        print("-" * 60)
+        
+        if args.tail:
+            # Show last N lines
+            subprocess.run(["tail", f"-n{args.tail}", str(log_file)])
+        elif args.follow:
+            # Follow log in real-time
+            try:
+                subprocess.run(["tail", "-f", str(log_file)])
+            except KeyboardInterrupt:
+                print("\n✅ Stopped following logs")
+        else:
+            # Show recent logs
+            subprocess.run(["tail", "-n50", str(log_file)])
+            
+        return 0
+        
+    def open(self, args):
+        """Open Seneca in browser"""
+        if not self._is_running():
+            print("❌ Seneca is not running")
+            print("   Run 'seneca start' first")
+            return 1
+            
+        port = self.config.port
+        url = f"http://localhost:{port}"
+        
+        print(f"🌐 Opening {url} in browser...")
+        webbrowser.open(url)
+        return 0
+        
+    def config(self, args):
+        """Manage Seneca configuration"""
+        if args.edit:
+            # Create default config if doesn't exist
+            if not self.config_file.exists():
+                default_config = {
+                    "host": "0.0.0.0",
+                    "port": 8080,
+                    "marcus_transport": "auto",
+                    "marcus_http_url": None,
+                    "debug": False
+                }
+                with open(self.config_file, 'w') as f:
+                    json.dump(default_config, f, indent=2)
+                    
+            # Open in editor
+            editor = os.environ.get("EDITOR", "vi")
+            subprocess.run([editor, str(self.config_file)])
+        else:
+            # Show config
+            config_dict = self.config.to_dict()
+            print(json.dumps(config_dict, indent=2))
+                
+        return 0
+        
+    def _is_running(self):
+        """Check if Seneca is running"""
+        pid = self._get_pid()
+        if pid:
+            try:
+                # Check if process exists
+                os.kill(pid, 0)
+                return True
+            except ProcessLookupError:
+                # Process doesn't exist, clean up PID file
+                self.pid_file.unlink(missing_ok=True)
+                return False
+        return False
+        
+    def _get_pid(self):
+        """Get Seneca PID from file"""
+        if self.pid_file.exists():
+            try:
+                return int(self.pid_file.read_text().strip())
+            except:
+                pass
+        return None
+        
+    def _open_browser(self, port):
+        """Open browser after short delay"""
+        import threading
+        import time
+        
+        def open_after_delay():
+            time.sleep(2)
+            webbrowser.open(f"http://localhost:{port}")
+            
+        threading.Thread(target=open_after_delay, daemon=True).start()
+
+
+def main():
+    """Main CLI entry point"""
+    cli = SenecaCLI()
+    
+    parser = argparse.ArgumentParser(
+        description="Seneca - Visualization and Analytics Platform for Marcus",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  seneca start              Start with auto-discovery
+  seneca start --port 8090  Start on custom port
+  seneca open              Open dashboard in browser
+  seneca status            Check if running
+  seneca logs --tail 20    View recent logs
+  seneca stop              Stop the server
+        """
+    )
+    
+    parser.add_argument("--version", action="version", version="Seneca 2.0.0")
+    
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
+    
+    # Start command
+    start_parser = subparsers.add_parser("start", help="Start Seneca server")
+    start_parser.add_argument("--port", type=int, help="Server port (default: 8080)")
+    start_parser.add_argument("--marcus-http", help="Marcus HTTP endpoint URL")
+    start_parser.add_argument("--marcus-stdio", action="store_true", help="Force stdio transport")
+    start_parser.add_argument("-f", "--foreground", action="store_true", help="Run in foreground")
+    start_parser.add_argument("--no-browser", dest="open_browser", action="store_false", 
+                            default=True, help="Don't open browser")
+    
+    # Stop command
+    stop_parser = subparsers.add_parser("stop", help="Stop Seneca server")
+    
+    # Status command
+    status_parser = subparsers.add_parser("status", help="Check Seneca status")
+    
+    # Logs command
+    logs_parser = subparsers.add_parser("logs", help="View Seneca logs")
+    logs_parser.add_argument("--tail", "-n", type=int, help="Show last N lines")
+    logs_parser.add_argument("--follow", "-f", action="store_true", help="Follow log output")
+    
+    # Open command
+    open_parser = subparsers.add_parser("open", help="Open Seneca in browser")
+    
+    # Config command
+    config_parser = subparsers.add_parser("config", help="Manage configuration")
+    config_parser.add_argument("--edit", "-e", action="store_true", help="Edit config file")
+    
+    args = parser.parse_args()
+    
+    # Execute command
+    if args.command == "start":
+        return cli.start(args)
+    elif args.command == "stop":
+        return cli.stop(args)
+    elif args.command == "status":
+        return cli.status(args)
+    elif args.command == "logs":
+        return cli.logs(args)
+    elif args.command == "open":
+        return cli.open(args)
+    elif args.command == "config":
+        return cli.config(args)
+    else:
+        parser.print_help()
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

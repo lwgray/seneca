@@ -179,9 +179,9 @@
                 <div class="flex items-center justify-between">
                     <span class="flex items-center">
                         <span :class="['status-indicator', isConnected ? 'status-active' : 'status-idle']"></span>
-                        {{ isConnected ? 'Connected' : 'Disconnected' }}
+[[ isConnected ? 'Connected' : 'Disconnected' ]]
                     </span>
-                    <span class="text-xs text-gray-500">{{ currentTime }}</span>
+                    <span class="text-xs text-gray-500">[[ currentTime ]]</span>
                 </div>
             </div>
             
@@ -195,7 +195,7 @@
                     <select v-model="filters.agentId" class="modern-input w-full">
                         <option value="">All Agents</option>
                         <option v-for="agent in activeAgents" :key="agent.id" :value="agent.id">
-                            {{ agent.name }}
+[[ agent.name ]]
                         </option>
                     </select>
                 </div>
@@ -254,21 +254,21 @@
                 <div class="metric-panel">
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-400">Messages/Hour</span>
-                        <span class="text-xl font-bold">{{ stats.messagesPerHour }}</span>
+                        <span class="text-xl font-bold">[[ stats.messagesPerHour ]]</span>
                     </div>
                 </div>
                 
                 <div class="metric-panel">
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-400">Active Agents</span>
-                        <span class="text-xl font-bold text-green-500">{{ stats.activeAgents }}</span>
+                        <span class="text-xl font-bold text-green-500">[[ stats.activeAgents ]]</span>
                     </div>
                 </div>
                 
                 <div class="metric-panel">
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-400">Avg Confidence</span>
-                        <span class="text-xl font-bold">{{ (stats.avgConfidence * 100).toFixed(0) }}%</span>
+                        <span class="text-xl font-bold">[[ (stats.avgConfidence * 100).toFixed(0) ]]%</span>
                     </div>
                     <div class="confidence-bar mt-2">
                         <div 
@@ -292,7 +292,7 @@
                             class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
                         >
                             <i class="fas fa-chart-line mr-2"></i>
-                            {{ showAnalytics ? 'Hide' : 'Show' }} Analytics
+[[ showAnalytics ? 'Hide' : 'Show' ]] Analytics
                         </button>
                         <button 
                             @click="exportConversations"
@@ -330,22 +330,22 @@
                 <!-- Additional Metrics Row -->
                 <div class="grid grid-cols-4 gap-4">
                     <div class="metric-panel text-center">
-                        <div class="text-3xl font-bold text-blue-500">{{ analytics.totalTasks }}</div>
+                        <div class="text-3xl font-bold text-blue-500">[[ analytics.totalTasks ]]</div>
                         <div class="text-sm text-gray-400 mt-1">Total Tasks</div>
                     </div>
                     
                     <div class="metric-panel text-center">
-                        <div class="text-3xl font-bold text-green-500">{{ analytics.completionRate }}%</div>
+                        <div class="text-3xl font-bold text-green-500">[[ analytics.completionRate ]]%</div>
                         <div class="text-sm text-gray-400 mt-1">Completion Rate</div>
                     </div>
                     
                     <div class="metric-panel text-center">
-                        <div class="text-3xl font-bold text-yellow-500">{{ analytics.avgResponseTime }}ms</div>
+                        <div class="text-3xl font-bold text-yellow-500">[[ analytics.avgResponseTime ]]ms</div>
                         <div class="text-sm text-gray-400 mt-1">Avg Response Time</div>
                     </div>
                     
                     <div class="metric-panel text-center">
-                        <div class="text-3xl font-bold text-red-500">{{ analytics.blockerCount }}</div>
+                        <div class="text-3xl font-bold text-red-500">[[ analytics.blockerCount ]]</div>
                         <div class="text-sm text-gray-400 mt-1">Active Blockers</div>
                     </div>
                 </div>
@@ -382,16 +382,16 @@
                             <div class="flex justify-between items-start mb-2">
                                 <div class="flex items-center">
                                     <i :class="getSourceIcon(conv)" class="mr-2"></i>
-                                    <span class="font-semibold">{{ conv.source }}</span>
+                                    <span class="font-semibold">[[ conv.source ]]</span>
                                     <i class="fas fa-arrow-right mx-2 text-gray-500 text-xs"></i>
-                                    <span class="text-gray-400">{{ conv.target }}</span>
+                                    <span class="text-gray-400">[[ conv.target ]]</span>
                                 </div>
-                                <span class="text-xs text-gray-500">{{ formatTime(conv.timestamp) }}</span>
+                                <span class="text-xs text-gray-500">[[ formatTime(conv.timestamp) ]]</span>
                             </div>
                             
                             <!-- Message Content -->
                             <div class="mb-2">
-                                <p class="text-gray-200">{{ conv.message }}</p>
+                                <p class="text-gray-200">[[ conv.message ]]</p>
                             </div>
                             
                             <!-- Metadata -->
@@ -399,17 +399,17 @@
                                 <div class="flex flex-wrap gap-2">
                                     <!-- Task ID -->
                                     <span v-if="conv.metadata.task_id" class="px-2 py-1 bg-blue-900 bg-opacity-30 text-blue-400 text-xs rounded">
-                                        <i class="fas fa-tasks mr-1"></i>{{ conv.metadata.task_id }}
+                                        <i class="fas fa-tasks mr-1"></i>[[ conv.metadata.task_id ]]
                                     </span>
                                     
                                     <!-- Confidence Score -->
                                     <span v-if="conv.metadata.confidence_score" class="px-2 py-1 bg-purple-900 bg-opacity-30 text-purple-400 text-xs rounded">
-                                        <i class="fas fa-brain mr-1"></i>{{ (conv.metadata.confidence_score * 100).toFixed(0) }}% confident
+                                        <i class="fas fa-brain mr-1"></i>[[ (conv.metadata.confidence_score * 100).toFixed(0) ]]% confident
                                     </span>
                                     
                                     <!-- Status -->
                                     <span v-if="conv.metadata.status" :class="getStatusClass(conv.metadata.status)">
-                                        {{ conv.metadata.status }}
+                                        [[ conv.metadata.status ]]
                                     </span>
                                     
                                     <!-- Custom metadata -->
@@ -418,7 +418,7 @@
                                         :key="key"
                                         class="px-2 py-1 bg-gray-800 text-gray-400 text-xs rounded"
                                     >
-                                        {{ key }}: {{ value }}
+                                        [[ key ]]: [[ value ]]
                                     </span>
                                 </div>
                             </div>
@@ -429,7 +429,7 @@
                                 <ul class="space-y-1">
                                     <li v-for="alt in conv.metadata.alternatives" :key="alt.id" class="text-sm text-gray-500">
                                         <i class="fas fa-chevron-right mr-1 text-xs"></i>
-                                        {{ alt.name }} ({{ (alt.score * 100).toFixed(0) }}% match)
+                                        [[ alt.name ]] ([[ (alt.score * 100).toFixed(0) ]]% match)
                                     </li>
                                 </ul>
                             </div>
@@ -458,7 +458,7 @@
                     </div>
                     <span class="font-semibold">Marcus is thinking...</span>
                 </div>
-                <p class="text-sm text-gray-300">{{ marcusThought }}</p>
+                <p class="text-sm text-gray-300">[[ marcusThought ]]</p>
             </div>
         </transition>
     </div>
